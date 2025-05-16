@@ -1,85 +1,66 @@
 from qiskit import QuantumCircuit, QuantumRegister, ClassicalRegister
 from qiskit_aer import AerSimulator
 import numpy as np
+import random
 
-def run_test_case(error_qubit, shots=10000, apply_final_h=True):
-    data = QuantumRegister(3, 'data')
-    ancilla = QuantumRegister(2, 'ancilla')
-    syndrome = ClassicalRegister(2, 'syndrome')
-    output = ClassicalRegister(1, 'output')
-    qc = QuantumCircuit(data, ancilla, syndrome, output)
+#Step 1 - Intialising Registers
+data = QuantumRegister(3,'data')
+ancilla = QuantumRegister(2,'ancilla')
+syndrome = ClassicalRegister(2,'syndrome')
+output = ClassicalRegister(1,'Output')
+qc = QuantumCircuit(data,ancilla,syndrome,output)
 
-    alpha, beta = np.sqrt(0.7), np.sqrt(0.3)
-    qc.initialize([alpha, beta], data[0])
-    qc.h(data[0])
-    qc.cx(data[0], data[1])
-    qc.cx(data[0], data[2])
-    qc.h(data)
+#Step 2 - Encoding
+alpha, beta = np.sqrt(0.7), np.sqrt(0.3)
+qc.initialize([alpha,beta],data[0])
+qc.cx(data[0],data[1])
+qc.cx(data[0],data[2])
 
-    print(f"\nTest Case: {error_qubit}")
-    if error_qubit != 'none':
-        print(f"Injecting phase-flip error on {error_qubit}")
-        if error_qubit == 'data[0]':
-            qc.z(data[0])
-        elif error_qubit == 'data[1]':
-            qc.z(data[1])
-        else:
-            qc.z(data[2])
-    else:
-        print("No error injected")
 
-    qc.h(data)
-    qc.reset(ancilla)
-    qc.cx(data[0], ancilla[0])
-    qc.cx(data[1], ancilla[0])
-    qc.cx(data[1], ancilla[1])
-    qc.cx(data[2], ancilla[1])
-    qc.barrier()
-    qc.measure(ancilla, syndrome)
 
-    with qc.if_test((syndrome, 0b10)):  # q2 error
-        qc.z(data[2])
-    with qc.if_test((syndrome, 0b01)):  # q0 error
-        qc.z(data[0])
-    with qc.if_test((syndrome, 0b11)):
-        qc.z(data[1])
+#Step 3 - Error inducing
+error_qubit = random.randint(0,3)
+if error_qubit < 3:
+    qc.x(data[error_qubit])
+    print(f"Error injected in qubit data[{error_qubit}]")
 
-    qc.cx(data[0], data[1])
-    qc.cx(data[0], data[2])
-    if apply_final_h:
-        qc.h(data[0])
-    qc.measure(data[0], output)
+else:
+    print("No error injected")
 
-    simulator = AerSimulator()
-    result = simulator.run(qc, shots=shots).result()
-    counts = result.get_counts()
 
-    # Reverse syndrome bits
-    reversed_counts = {}
-    for key, value in counts.items():
-        if ' ' in key:
-            output_bit, syndrome_bits = key.split()
-            reversed_syndrome = syndrome_bits[::-1]
-            new_key = f"{output_bit} {reversed_syndrome}"
-        else:
-            new_key = key
-        reversed_counts[new_key] = value
+#Step 4 - Reciever - Detecting and C
+qc.cx(data[0],ancilla[0])
+qc.cx(data[2],ancilla[0])
+qc.cx(data[1], ancilla[1])
+qc.cx(data[2], ancilla[1])
+qc.barrier()
+qc.measure(ancilla[0], syndrome[0]) # syndrome[0] = q0 XOR q2 (LSB) 
+qc.measure(ancilla[1], syndrome[1]) # syndrome[1] = q1 XOR q2 (MSB)
 
-    output_counts = {'0': 0, '1': 0}
-    for key in reversed_counts:
-        output_bit = key.split()[0] if ' ' in key else key[-1]
-        output_counts[output_bit] += reversed_counts[key]
+#Step 5 Error Correction
+with qc.if_test((syndrome, 0b01)):  # '01' → Error on data[0]
+    qc.x(data[0])
+with qc.if_test((syndrome, 0b10)):  # '10' → Error on data[1]
+    qc.x(data[1])
+with qc.if_test((syndrome, 0b11)):  # '11' → Error on data[2]
+    qc.x(data[2])
 
-    print("Syndrome counts:", {k: v for k, v in reversed_counts.items() if len(k) >= 2})
-    print("Final output counts:", output_counts)
-    return reversed_counts, output_counts
+#Step 6 Decoding
+qc.cx(data[0], data[2])
+qc.cx(data[0], data[1])
+qc.measure(data[0], output[0])
 
-test_cases = ['data[0]', 'data[1]', 'data[2]', 'none']
-shots = 10000
-apply_final_h = True
+#Circuit
+simulator = AerSimulator()
+result = simulator.run(qc, shots=10000).result()
+counts = result.get_counts()
 
-for test_case in test_cases:
-    counts, output_counts = run_test_case(test_case, shots, apply_final_h)
+#Result
+output_counts = {'0': 0, '1': 0}
+for key in counts:
+    # Extract the last bit (output[0])
+    output_bit = key.split()[0] if ' ' in key else key[-1]
+    output_counts[output_bit] += counts[key]
 
-print("\nRunning no-error case without final H gate to test output mapping:")
-run_test_case('none', shots, apply_final_h=False)
+print("Output counts:", output_counts)
+print("Syndrome counts:", result.get_counts(qc))
