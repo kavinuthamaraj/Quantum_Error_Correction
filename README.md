@@ -29,8 +29,8 @@ These codes are simulated using randomized noise injection, syndrome measurement
 ![Phase Flip Circuit](phase_flip_circuit.png)
 
 ### `shore.py` — 9-Qubit Shor Code
-![Shor Code Circuit](shor1.png)
-![Shor Code Circuit](shor2.png)
+![Shor Code Circuit](shor_1.png)
+![Shor Code Circuit](shor_2.png)
 
 ---
 
