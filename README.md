@@ -23,6 +23,14 @@ These codes are simulated using randomized noise injection, syndrome measurement
 ## 🔧 Circuit Diagrams
 
 ### `bit_flip.py` — 3-Qubit Bit-Flip Code
+![Bit Flip Circuit](bit_flip_circuit.png)
+
+### `phase_flip.py` — 3-Qubit Phase-Flip Code
+![Phase Flip Circuit](phase_flip_circuit.png)
+
+### `shore.py` — 9-Qubit Shor Code
+![Shor Code Circuit](shor1.png)
+![Shor Code Circuit](shor2.png)
 
 ---
 
